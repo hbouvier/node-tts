@@ -1,0 +1,54 @@
+<html>
+<head>
+  <script>
+        var index = 0;
+        var playing = 0;
+        var audio = [];
+        function queue(text) {
+            if (text === '') return;
+            console.log('queuing '+index + ' text:'+text);
+            audio[index] = document.createElement('audio');
+            audio[index].src='http://localhost:8082/ws/tts?text='+text;
+            audio[index].load();
+            audio[index].addEventListener('ended', function () {
+                console.log('ending '+playing);
+                ++playing;
+                if (playing < index) {
+                    console.log('playing '+playing);
+                    audio[playing].play();
+                } else {
+                    index = playing = 0;
+                }
+            });
+            //document.body.appendChild(audio[index]);
+            ++index;
+        }
+       
+        
+        function play() {
+            if (index > 0 && playing === 0) {
+                console.log('playing '+playing);
+                audio[playing].play();
+            }
+        }
+        function playAll() {
+            var one   = document.getElementById('one');
+            var two   = document.getElementById('two');
+            var three = document.getElementById('three');
+            var foour = document.getElementById('four');
+            queue(one.value);
+            queue(two.value);
+            queue(three.value);
+            queue(four.value);
+            play();
+        }
+  </script>
+</head>
+<body>
+    <span> Phrase one   <input id='one'   type='edit' size=80 value=''></input> </span><br>
+    <span> Phrase tow   <input id='two'   type='edit' size=80 value=''></input> </span><br>
+    <span> Phrase three <input id='three' type='edit' size=80 value=''></input> </span><br>
+    <span> Phrase four  <input id='four'  type='edit' size=80 value=''></input> </span><br>
+    <input type='button' value='Play' onclick='playAll()'></input>
+</body>
+</html>

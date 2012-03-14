@@ -17,7 +17,7 @@ app.configure(function () {
     app.use(express.cookieParser());
     app.use(express.bodyParser());
     app.use(app.router);
-    //app.use(express.static(__dirname + '/www'));
+    app.use(express.static(__dirname + '/www'));
 });
 
 /////////////////////////////////////////////////////////////////////////////////////////

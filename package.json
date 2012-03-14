@@ -4,18 +4,23 @@
   "description": "A tts server form Mac OS X",
   "author": "Henri Bouvier",
   "main": "ttsserver",
-  "bin": { "ttsserver": "./ttsserver.js" },
-  "keywords": ["tts", "text to speak"],
+  "bin": {
+    "ttsserver": "./ttsserver.js"
+  },
+  "keywords": [
+    "tts",
+    "text to speak"
+  ],
   "repository": {
     "type": "git",
     "url": "git@github.com:hbouvier/node-tts.git"
   },
   "dependencies": {
-    "express":"latest"
+    "express": "latest"
   },
   "devDependencies": {},
   "optionalDependencies": {},
   "engines": {
-      "node": ">= 0.6.6 < 0.7.0"
+    "node": ">= 0.6.6 < 0.7.0"
   }
 }
