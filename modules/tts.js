@@ -18,10 +18,9 @@ var util  = require('util'),
                     this.cacheFiles[this.cache + '/' + files[index]] = this.cache + '/' +files[index];
                 }
             }
-            util.log('|tts|cachesize='+this.cacheFiles.length);
         },
         
-        say : function (text, voice, callback) {
+        play : function (text, voice, callback) {
             voice    = voice || 'Alex';
             var filename = voice + '_' + this.format + '_' + text;
             
@@ -50,7 +49,6 @@ var util  = require('util'),
             this.generate(filename, text, voice, generatedCallback);
             
             function generatedCallback(err, result) {
-                console.log(this);
                 var $this = this;
                 util.log('|tts|generatedCallback|err='+err+'|result='+result+'|queusize='+$this.cacheCallbacks[filename].length);
                 if(!err) {

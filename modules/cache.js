@@ -12,7 +12,6 @@ module.exports = function cache(fn) {
             process.nextTick(function () {
                 callback(null, value);
             });
-            util.log('|tts|file-from-cache='+key+'|cachesize='+requestCache.length);
             return;
         }
         if (requestBatches.hasOwnProperty(key)) {
