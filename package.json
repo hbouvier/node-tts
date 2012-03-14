@@ -3,8 +3,8 @@
   "version": "0.0.1",
   "description": "A tts server form Mac OS X",
   "author": "Henri Bouvier",
-  "main": "tts",
-  "bin": { "tts": "./tts.js" },
+  "main": "ttsserver",
+  "bin": { "ttsserver": "./ttsserver.js" },
   "keywords": ["tts", "text to speak"],
   "repository": {
     "type": "git",
