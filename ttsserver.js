@@ -1,10 +1,9 @@
 var express       = require('express'),
     util          = require('util'),
+    tts           = require('./modules/tts').tts,
     fs            = require('fs'),
-    spawn         = require('child_process').spawn,
     port          = process.env.PORT || 8082,
     app           = express.createServer(),
-    cache         = __dirname + '/cache',
     version       = JSON.parse(fs.readFileSync(__dirname + "/package.json")).version;
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -40,6 +39,19 @@ app.configure('production', function () {
 
 
 app.get('/ws/tts', function (req, res) {
+    tts.say(req.param('text', 'No text passed'), 
+        req.param('voice', 'Alex'),
+        function (err, filename) {
+            util.log('|tts|get|err=' +err + '|filename=' + filename);
+
+            if (err) {
+                res.writeHead(404, {"Content-Type": "text/html"});
+                res.end('<html><body><pre>Unable to generate tts <br/>\n' + err + '</pre></body></html>');
+            } else {
+                res.sendfile(filename);
+            }
+        });
+/*        
     var command  = '/usr/bin/say';
     var format   = '.m4a';    // '.' + req.param('format', 'm4a');
     var voice    = req.param('voice', 'Alex');
@@ -63,12 +75,12 @@ app.get('/ws/tts', function (req, res) {
         text
     ];
 
-    fs.stat(filename, function (err /*, stats*/) {
+    fs.stat(filename, function (err , stats) {
         if (err) {
             var output='';
             util.log('|tts|generating|voice='+voice+'|format='+format+'|text='+text);
             var child = spawn(command, args, options);
-            child.on('exit', function (code /*, signal*/) {
+            child.on('exit', function (code , signal) {
                 util.log('|tts|generated=' + code +'|voice='+voice+'|format='+format+'|text='+text);
                 if (code === 0) {
                     res.sendfile(filename);
@@ -90,12 +102,13 @@ app.get('/ws/tts', function (req, res) {
             res.sendfile(filename);
         }
     });
+    */
 });
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
 // Start listening for clients!
 //
-try { fs.mkdirSync(cache); } catch (e) { } // Ignore
+tts.init();
 app.listen(port);
 util.log('|tts|port=' + port + '|version='+version);
