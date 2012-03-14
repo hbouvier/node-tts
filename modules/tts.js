@@ -5,11 +5,20 @@ var util  = require('util'),
         init: function () {
             this.cache          = __dirname + '/cache';
             this.format         = '.m4a';
+            this.regex          = /\.m4a$/;
             this.cacheCallbacks = {};
             this.cacheFiles     = {};
-            this.ttl            = 1000; // in ms, 0 == never expire
+            this.ttl            = 0; // in ms, 0 == never expire
     
             try { fs.mkdirSync(this.cache); } catch (e) { } // Ignore
+            
+            var files = fs.readdirSync(this.cache + '/');
+            for (var index in files) {
+                if (files[index].match(this.regex)) {
+                    this.cacheFiles[this.cache + '/' + files[index]] = this.cache + '/' +files[index];
+                }
+            }
+            util.log('|tts|cachesize='+this.cacheFiles.length);
         },
         
         say : function (text, voice, callback) {
@@ -21,18 +30,19 @@ var util  = require('util'),
         },
         
         getWaveFromCache : function (filename, text, voice, callback) {
-            var $this = this;
             // Already in cache
             if (this.cacheFiles.hasOwnProperty(filename)) {
                 var value = this.cacheFiles[filename];
                 process.nextTick(function () {
                     callback(null, value);
                 });
+                util.log('|tts|prompt-from-cache='+filename+'|cachesize=' + this.cacheFiles.length);
                 return;
             }
             // Being generated, queue ourself
             if (this.cacheCallbacks.hasOwnProperty(filename)) {
                 this.cacheCallbacks[filename].push(callback);
+                util.log('|tts|queue-prompt-from-cache='+filename+'|queueize=' + this.cacheCallbacks[filename].length);
                 return;
             }
             // Generate it
@@ -40,13 +50,17 @@ var util  = require('util'),
             this.generate(filename, text, voice, generatedCallback);
             
             function generatedCallback(err, result) {
-                util.log('|tts|generatedCallback|err='+err+'|result='+result);
-                if(!err && $this.ttl) {
+                console.log(this);
+                var $this = this;
+                util.log('|tts|generatedCallback|err='+err+'|result='+result+'|queusize='+$this.cacheCallbacks[filename].length);
+                if(!err) {
                     $this.cacheFiles[filename] = result;
-                    setTimeout(function () {
-                        util.log('|tts|cache|deleting='+$this.cacheFiles[filename]);
-                        delete $this.cacheFiles[filename];
-                    }, $this.ttl);
+                    if ($this.ttl) {
+                        setTimeout(function () {
+                            util.log('|tts|cache|deleting='+$this.cacheFiles[filename]);
+                            delete $this.cacheFiles[filename];
+                        }, $this.ttl);
+                    }
                 }
                 var savedCallbacks = $this.cacheCallbacks[filename];
                 delete $this.cacheCallbacks[filename];
@@ -78,9 +92,9 @@ var util  = require('util'),
             child.on('exit', function (code /*, signal*/) {
                 util.log('|tts|generated=' + code +'|voice='+voice+'|format='+$this.format+'|text='+text);
                 if (code === 0) {
-                    callback(null, filename);
+                    callback.call($this, null, filename);
                 } else {
-                    callback(new Error(output));
+                    callback.call($this, new Error(output));
                 }
             });
             child.stdout.on('data', function (data) {

@@ -1,7 +1,9 @@
 var express       = require('express'),
     util          = require('util'),
     tts           = require('./modules/tts').tts,
+    cache         = require('./modules/cache'),
     fs            = require('fs'),
+    readFromCache = cache(fs.readFile),
     port          = process.env.PORT || 8082,
     app           = express.createServer(),
     version       = JSON.parse(fs.readFileSync(__dirname + "/package.json")).version;
@@ -43,66 +45,17 @@ app.get('/ws/tts', function (req, res) {
         req.param('voice', 'Alex'),
         function (err, filename) {
             util.log('|tts|get|err=' +err + '|filename=' + filename);
-
-            if (err) {
-                res.writeHead(404, {"Content-Type": "text/html"});
-                res.end('<html><body><pre>Unable to generate tts <br/>\n' + err + '</pre></body></html>');
-            } else {
-                res.sendfile(filename);
-            }
-        });
-/*        
-    var command  = '/usr/bin/say';
-    var format   = '.m4a';    // '.' + req.param('format', 'm4a');
-    var voice    = req.param('voice', 'Alex');
-    var text     = req.param('text', 'No text passed');
-    var filename = voice + '_' + format + '_' + text;
-    var options = {
-        "cwd": "/tmp/",
-        "env": {
-            "ENV":"development"
-        },
-        "customFds":[
-            -1,
-            -1,
-            -1
-        ]
-    };
-    filename = cache + '/' + filename.replace(/[^a-zA-Z0-9]/g, '_') + format;
-    var args = [
-        '-o', filename,
-        '-v', voice,
-        text
-    ];
-
-    fs.stat(filename, function (err , stats) {
-        if (err) {
-            var output='';
-            util.log('|tts|generating|voice='+voice+'|format='+format+'|text='+text);
-            var child = spawn(command, args, options);
-            child.on('exit', function (code , signal) {
-                util.log('|tts|generated=' + code +'|voice='+voice+'|format='+format+'|text='+text);
-                if (code === 0) {
-                    res.sendfile(filename);
-                } else {
+            readFromCache(filename, function(err, data) {
+                if (err) {
                     res.writeHead(404, {"Content-Type": "text/html"});
-                    res.end('<html><body><pre>Unable to generate tts for ' + req.body.text + '<br/>\n' + output  + '</pre></body></html>');
+                    res.end('<html><body><pre>Unable to generate tts <br/>\n' + err + '</pre></body></html>');
+                } else {
+                    res.writeHead(200, {'Content-Type': 'audio/mp4'});
+                    res.end(data);
+                    //res.sendfile(filename);
                 }
             });
-            child.stdout.on('data', function (data) {
-                util.log('|tts|stdout=' + data + '\n');
-                output += 'STDOUT:'+ data + '\n';
-            });
-            child.stderr.on('data', function (data) {
-                util.log('|tts|stderr=' + data + '\n');
-                output += 'STDERR:' + data + '\n';
-            });
-        } else {
-            util.log('|tts|cached='+filename);
-            res.sendfile(filename);
-        }
-    });
-    */
+        });
 });
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -110,5 +63,6 @@ app.get('/ws/tts', function (req, res) {
 // Start listening for clients!
 //
 tts.init();
+
 app.listen(port);
 util.log('|tts|port=' + port + '|version='+version);
