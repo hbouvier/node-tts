@@ -1,6 +1,7 @@
 var util  = require('util'),
     spawn = require('child_process').spawn,
     fs    = require('fs'),
+    Funnel = require('./funnel'),
     tts   = {
         init: function () {
             this.cache          = __dirname + '/cache';
@@ -9,6 +10,7 @@ var util  = require('util'),
             this.cacheCallbacks = {};
             this.cacheFiles     = {};
             this.ttl            = 0; // in ms, 0 == never expire
+            this.funnel = new Funnel();
     
             try { fs.mkdirSync(this.cache); } catch (e) { } // Ignore
             
@@ -46,7 +48,8 @@ var util  = require('util'),
             }
             // Generate it
             this.cacheCallbacks[filename] = [callback];
-            this.generate(filename, text, voice, generatedCallback);
+            this.funnel.queue(this, this.generate, filename, text, voice, generatedCallback);
+            //this.generate(filename, text, voice, generatedCallback);
             
             function generatedCallback(err, result) {
                 var $this = this;
