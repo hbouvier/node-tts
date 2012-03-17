@@ -16,7 +16,8 @@
     "url": "git@github.com:hbouvier/node-tts.git"
   },
   "dependencies": {
-    "express": "latest"
+    "express": "latest",
+    "crypto" : "latest"
   },
   "devDependencies": {},
   "optionalDependencies": {},

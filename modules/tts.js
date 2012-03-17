@@ -1,9 +1,10 @@
-var util   = require('util'),
-    spawn  = require('child_process').spawn,
-    fs     = require('fs'),
-    Cache  = require('./cache'),
-    Funnel = require('./funnel'),
-    tts    = {
+var util    = require('util'),
+    spawn   = require('child_process').spawn,
+    fs      = require('fs'),
+    crypto  = require('crypto'),
+    Cache   = require('./cache'),
+    Funnel  = require('./funnel'),
+    tts     = {
         init: function () {
             this.cachePath       = __dirname + '/cache';
             this.format         = '.m4a';
@@ -46,9 +47,13 @@ var util   = require('util'),
         },
         
         play : function (text, voice, callback) {
+            var sha1 = crypto.createHash('sha1');
             voice    = voice || 'Alex';
-            var filename = voice + '_' + this.format + '_' + text;
-            filename = this.cachePath + '/' + filename.replace(/[^a-zA-Z0-9]/g, '_') + this.format;
+            sha1.update(voice + '_' + this.format + '_' + text);
+            var hex = sha1.digest('hex');
+
+            
+            var filename = this.cachePath + '/' + hex + this.format;
             util.log('tts|filename='+filename);
             this.cache.queue(filename, this, this.loadFromDisk, filename, text, voice, callback);
         },
