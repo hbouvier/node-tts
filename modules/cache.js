@@ -18,7 +18,7 @@ module.exports = (function () {
     var nbFetchInProgress  = 0;
     
     function printStats() {
-        if (verbose) util.log('cache|hit=' + nbCacheHit + '|miss=' + nbCacheMiss + '|fetch='+nbFetch+'|fetching='+nbFetchInProgress+'|cacheSize='+resourceCache.length+'|requestQueueSize='+requestQueue.length);
+        if (verbose) util.log('cache|hit=' + nbCacheHit + '|miss=' + nbCacheMiss + '|fetch='+nbFetch+'|fetching='+nbFetchInProgress+'|cacheSize='+length(resourceCache)+'|requestQueueSize='+length(requestQueue));
     }
     
     function execute(task) {
@@ -38,12 +38,10 @@ module.exports = (function () {
             if (verbose) util.log('cache|execute|done|err='+err+'|result='+(resource ? 'found':'null'));
             if (!err && defaultCacheTTL) {    // ttl ===  0 --> expire imediatly.
                 resourceCache[key] = resource;
-                /*
-                if (resourceCache.length > defaultCacheSize) {
+                if (length(resourceCache) > defaultCacheSize) {
                     if (verbose) util.log('cache|expire|key='+key);
                     resourceCache.shift();
                 }
-                */
                 if (defaultCacheTTL !== -1) { // ttl === -1 --> never expire
                     setTimeout(function () {
                         if (verbose) util.log('cache|expire|key='+key);
@@ -60,6 +58,14 @@ module.exports = (function () {
             }
             printStats();
         }
+    }
+
+    function length(obj) {
+        var size = 0, key;
+        for (key in obj) {
+            if (obj.hasOwnProperty(key)) size++;
+        }
+        return size;
     }
     
     /////////////////////////// PUBLIC CLASS //////////////////////////////////
@@ -88,7 +94,7 @@ module.exports = (function () {
         ++nbCacheMiss;
         if (requestQueue.hasOwnProperty(key)) {
             requestQueue[key].push(callback);
-            if (verbose) util.log('cache|queued|key='+key+'|queueSize='+requestQueue[key].length);
+            if (verbose) util.log('cache|queued|key='+key+'|queueSize='+length(requestQueue[key]));
             printStats();
             return;
         }
@@ -97,7 +103,7 @@ module.exports = (function () {
         execute(task);
         printStats();
     };
-
+    
 ///////////////////////////////////////////////////////////////////////////////
     
     return Cache;
