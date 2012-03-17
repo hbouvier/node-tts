@@ -9,8 +9,13 @@ var util   = require('util'),
             this.format         = '.m4a';
             this.cacheFiles     = {};
             this.funnel = new Funnel();  // One executor per CPU
-            this.cache  = new Cache(100,1000*60*60);
+            this.cache  = new Cache(100,1000*60*60); // One hour
             try { fs.mkdirSync(this.cachePath); } catch (e) { } // Ignore
+            this.cache.on('stats', function (stats) {
+                util.log('tts|cache|hit=' + stats.hit + '|miss=' + stats.miss + 
+                              '|fetch='+stats.fetch+'|fetching='+stats.fetching+
+                              '|inCache='+stats.inCache+'|waiting='+stats.waiting);
+            });
         },
         
         loadFromDisk: function (filename, text, voice, callback) {

@@ -1,4 +1,5 @@
-var util = require('util');
+var events = require('events'),
+    util   = require('util');
 
 module.exports = (function () {
     
@@ -12,40 +13,45 @@ module.exports = (function () {
     var debug            = true;
     
     /// Stats
-    var nbCacheHit         = 0;
-    var nbCacheMiss        = 0;
-    var nbFetch            = 0;
-    var nbFetchInProgress  = 0;
-    
-    function printStats() {
-        if (verbose) util.log('cache|hit=' + nbCacheHit + '|miss=' + nbCacheMiss + '|fetch='+nbFetch+'|fetching='+nbFetchInProgress+'|cacheSize='+length(resourceCache)+'|requestQueueSize='+length(requestQueue));
-    }
+    var stats = {
+        hit         : 0,
+        miss        : 0,
+        fetch       : 0,
+        waiting     : 0,
+        inCache     : 0,
+        fetching    : 0
+    };
     
     function execute(task) {
-        var key = task.shift();
-        var obj  = typeof(task[0]) === 'object' ? task.shift()  : null;
-        var func = task.shift();
-        var args = task; // All the args 
-        args.push(done);
-        ++nbFetch;
-        ++nbFetchInProgress;
-        
-        func.apply(obj, args);
+        var self    = this;  // The Cache class that inherits Events
+        var key     = task.shift();
+        var obj     = typeof(task[0]) === 'object' ? task.shift()  : null; // if the fetch function is a class, this is the 'this'
+        var fetcher = task.shift();  // the fetch function or method (if the previous parameter was an object)
+        var args    = task; // All the args to be passed to the fetch function/method without the callback
+        args.push(done); // We are adding the 'done' method as the callback
+        ++stats.fetch;
+        ++stats.fetching;
+        this.emit('stats', stats);
+        fetcher.apply(obj, args); // Fetch the resource and call 'done' when it is fetched
         
         function done(err, resource) {
-            var $this = this;
-            --nbFetchInProgress;
             if (verbose) util.log('cache|execute|done|err='+err+'|result='+(resource ? 'found':'null'));
             if (!err && defaultCacheTTL) {    // ttl ===  0 --> expire imediatly.
                 resourceCache[key] = resource;
-                if (length(resourceCache) > defaultCacheSize) {
+                ++stats.inCache;
+                if (stats.inCache > defaultCacheSize) {
                     if (verbose) util.log('cache|expire|key='+key);
                     resourceCache.shift();
+                    --stats.inCache; // will emit at the end of the done funciton
                 }
                 if (defaultCacheTTL !== -1) { // ttl === -1 --> never expire
                     setTimeout(function () {
                         if (verbose) util.log('cache|expire|key='+key);
-                        delete resourceCache[key];
+                        if (resourceCache[key]) {
+                            --stats.inCache;
+                            delete resourceCache[key];
+                        }
+                        self.emit('stats', stats);
                     }, defaultCacheTTL);
                 }
             }
@@ -54,20 +60,14 @@ module.exports = (function () {
             delete requestQueue[key];
             for (var i = 0, size = pendingRequests.length ; i < size ; ++i) {
                 if (debug) util.log('cache|calling='+i+'|err='+err+'|resource='+(resource ? 'found':'null'));
-                pendingRequests[i].call($this, err, resource);
+                pendingRequests[i].call(this, err, resource);
+                --stats.waiting;
             }
-            printStats();
+            --stats.fetching;
+            self.emit('stats', stats);
         }
     }
 
-    function length(obj) {
-        var size = 0, key;
-        for (key in obj) {
-            if (obj.hasOwnProperty(key)) size++;
-        }
-        return size;
-    }
-    
     /////////////////////////// PUBLIC CLASS //////////////////////////////////
     
     function Cache(size, ttl) {
@@ -75,6 +75,22 @@ module.exports = (function () {
         defaultCacheTTL  = ttl  || defaultCacheTTL;
         if (verbose) util.log('Cache|defaultCacheSize='+defaultCacheSize+'|defaultCacheTTL='+defaultCacheTTL);
     }
+    
+    util.inherits(Cache, events.EventEmitter);
+
+    Cache.prototype.clear = function() {
+        resourceCache = {};
+        stats.inCache = 0;
+        this.emit('stats', stats);
+    };
+    
+    Cache.prototype.invalidate = function(key) {
+        if (resourceCache[key]) {
+            delete resourceCache[key];
+            --stats.inCache;
+        }
+        this.emit('stats', stats);
+    };
     
     Cache.prototype.queue = function(key) {
         var task =  Array.prototype.slice.call(arguments);
@@ -84,24 +100,25 @@ module.exports = (function () {
         // The resource is in the cache
         if (resourceCache.hasOwnProperty(key)) {
             var resource = resourceCache[key];
-            ++nbCacheHit;
+            ++stats.hit;
             process.nextTick(function () {
                 callback(null, resource);
             });
-            printStats();
+            this.emit('stats', stats);
             return;
         }
-        ++nbCacheMiss;
+        ++stats.miss;
         if (requestQueue.hasOwnProperty(key)) {
             requestQueue[key].push(callback);
-            if (verbose) util.log('cache|queued|key='+key+'|queueSize='+length(requestQueue[key]));
-            printStats();
+            ++stats.waiting;
+            this.emit('stats', stats);
+            if (verbose) util.log('cache|queued|key='+key+'|waiting='+stats.waiting);
             return;
         }
         if (verbose) util.log('cache|fetch|key='+key);
         requestQueue[key] = [callback];
-        execute(task);
-        printStats();
+        ++stats.waiting;
+        execute.call(this, task);
     };
     
 ///////////////////////////////////////////////////////////////////////////////
