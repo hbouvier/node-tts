@@ -3,24 +3,74 @@ var events = require('events'),
 
 module.exports = (function () {
     
-    ///////////////////////// PRIVATE METHODS /////////////////////////////////
+    ///////////////////////////// PRIVATE  /////////////////////////////////////
+    
+    var verbose          = true;
+    var debug            = true;
 
+    // 
     var requestQueue     = {};
     var resourceCache    = {};
     var defaultCacheTTL  = 1000;
     var defaultCacheSize = 100;
-    var verbose          = true;
-    var debug            = true;
     
     /// Stats
     var stats = {
-        hit         : 0,
-        miss        : 0,
-        fetch       : 0,
-        waiting     : 0,
-        inCache     : 0,
-        fetching    : 0
+        hit         : 0, // was in the cache
+        miss        : 0, // had to fetch
+        queued      : 0, // resource was already fetching and we had to wait for it
+        inCache     : 0, // # in the cache now
+        waiting     : 0, // RealTime: # waiting now for a resource
+        fetching    : 0  // RealTime: # of resources being fetched now
     };
+    
+    function weedOutCache() {
+        var now = new Date().getTime();
+        
+        var deadResource = {
+            'key'    : null,
+            'epoch'  : Number.MAX_VALUE,  // new Date().getTime();
+            'access' : Number.MAX_VALUE,  // new Date().getTime();
+            'expire' : 0,                 // defaultCacheTTL
+            'hits'   : Number.MIN_VALUE
+        };
+
+        // Remove the cache element that will expire first, when multiple matches
+        // expire the one with the less hits.
+        for (var key in resourceCache) {
+            if (resourceCache.hasOwnProperty(key)) {
+                if (requestQueue[key]) // This resource cannot be removed because clients are waiting for it
+                    continue;
+                if (resourceCache[key].epoch + resourceCache[key].expire < now) { // has the resource expire?
+                    if (deadResource.epoch + deadResource.expire < now) {// has the one we plan to remove has also expired?
+                        if (resourceCache[key].hits / (now - resourceCache[key].epoch) < deadResource.hits / (now - deadResource.epoch)) { // remove the one with less hits per unit of time
+                            deadResource = resourceCache[key];
+                        }
+                    } else { // the one marked has not expired yet, lets remove this one since it has
+                        deadResource = resourceCache[key];
+                    }
+                        // this one has not expire, lets look if it will expire before the one we have marked
+                } else if (resourceCache[key].epoch + resourceCache[key].expire < deadResource.epoch + deadResource.expire) {
+                    deadResource = resourceCache[key];
+                } else if (resourceCache[key].epoch + resourceCache[key].expire === deadResource.epoch + deadResource.expire &&
+                           resourceCache[key].hits < deadResource.hits) { // expires at the same time, lets take the one that has been requested less
+                    deadResource = resourceCache[key];
+                }
+            }
+        }
+        if (resourceCache[deadResource.key]) {
+            if (debug) util.log('cache|weedOut|key='+deadResource.key);
+            --stats.inCache;
+            delete resourceCache[deadResource.key];
+        }
+        var then = new Date().getTime();
+        if (then - now > 500) {
+            util.log('Cache|ERROR|NODE slowdown because of the size of the cache (' + defaultCacheSize + ')');
+        } else if (then - now > 100) {
+            util.log('Cache|WARNING|NODE slowdown because of the size of the cache (' + defaultCacheSize + ')');
+        }
+        if (debug) util.log('Cache|weedOut|elapse='+ (then - now) + 'ms');
+    }
     
     function execute(task) {
         var self    = this;  // The Cache class that inherits Events
@@ -29,7 +79,7 @@ module.exports = (function () {
         var fetcher = task.shift();  // the fetch function or method (if the previous parameter was an object)
         var args    = task; // All the args to be passed to the fetch function/method without the callback
         args.push(done); // We are adding the 'done' method as the callback
-        ++stats.fetch;
+        ++stats.miss;
         ++stats.fetching;
         this.emit('stats', stats);
         fetcher.apply(obj, args); // Fetch the resource and call 'done' when it is fetched
@@ -37,30 +87,27 @@ module.exports = (function () {
         function done(err, resource) {
             if (verbose) util.log('cache|execute|done|err='+err+'|result='+(resource ? 'found':'null'));
             if (!err && defaultCacheTTL) {    // ttl ===  0 --> expire imediatly.
-                resourceCache[key] = resource;
+                if (stats.inCache >= defaultCacheSize) {
+                    weedOutCache();
+                }
+                var now = new Date().getTime();
+                resourceCache[key] = {
+                    'key'   : key,
+                    'epoch' : now,
+                    'access': now,
+                    'expire': defaultCacheTTL,
+                    'hits'  : 0,
+                    'data'  : resource
+                };
                 ++stats.inCache;
-                if (stats.inCache > defaultCacheSize) {
-                    if (verbose) util.log('cache|expire|key='+key);
-                    resourceCache.shift();
-                    --stats.inCache; // will emit at the end of the done funciton
-                }
-                if (defaultCacheTTL !== -1) { // ttl === -1 --> never expire
-                    setTimeout(function () {
-                        if (verbose) util.log('cache|expire|key='+key);
-                        if (resourceCache[key]) {
-                            --stats.inCache;
-                            delete resourceCache[key];
-                        }
-                        self.emit('stats', stats);
-                    }, defaultCacheTTL);
-                }
             }
             
             var pendingRequests = requestQueue[key];
             delete requestQueue[key];
             for (var i = 0, size = pendingRequests.length ; i < size ; ++i) {
                 if (debug) util.log('cache|calling='+i+'|err='+err+'|resource='+(resource ? 'found':'null'));
-                pendingRequests[i].call(this, err, resource);
+                ++resourceCache[key].hits;
+                pendingRequests[i].call(this, err, resource, resourceCache[key]);
                 --stats.waiting;
             }
             --stats.fetching;
@@ -74,6 +121,9 @@ module.exports = (function () {
         defaultCacheSize = size || defaultCacheSize;
         defaultCacheTTL  = ttl  || defaultCacheTTL;
         if (verbose) util.log('Cache|defaultCacheSize='+defaultCacheSize+'|defaultCacheTTL='+defaultCacheTTL);
+        if (defaultCacheSize > 10000) {
+            util.log('Cache|WARNING|Weeding out a BIG (' + defaultCacheSize + ') cache when it is full can degrade the NODE server performance since it is not async');
+        }
     }
     
     util.inherits(Cache, events.EventEmitter);
@@ -99,25 +149,25 @@ module.exports = (function () {
         var callback = task.pop();
         // The resource is in the cache
         if (resourceCache.hasOwnProperty(key)) {
-            var resource = resourceCache[key];
             ++stats.hit;
+            ++resourceCache[key].hits;
+            resourceCache[key].access = new Date().getTime();
             process.nextTick(function () {
-                callback(null, resource);
+                callback(null, resourceCache[key].data, resourceCache[key]);
             });
             this.emit('stats', stats);
             return;
         }
-        ++stats.miss;
+        ++stats.waiting;
         if (requestQueue.hasOwnProperty(key)) {
             requestQueue[key].push(callback);
-            ++stats.waiting;
+            ++stats.queued;
             this.emit('stats', stats);
             if (verbose) util.log('cache|queued|key='+key+'|waiting='+stats.waiting);
             return;
         }
         if (verbose) util.log('cache|fetch|key='+key);
         requestQueue[key] = [callback];
-        ++stats.waiting;
         execute.call(this, task);
     };
     
