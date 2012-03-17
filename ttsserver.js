@@ -1,9 +1,9 @@
 var express       = require('express'),
     util          = require('util'),
     tts           = require('./modules/tts').tts,
-    cache         = require('./modules/cache'),
+//    cache         = require('./modules/cache'),
     fs            = require('fs'),
-    readFromCache = cache(fs.readFile),
+//    readFromCache = cache(fs.readFile),
     port          = process.env.PORT || 8082,
     app           = express.createServer(),
     voice         = 'Alex',
@@ -44,18 +44,15 @@ app.configure('production', function () {
 app.get('/ws/tts', function (req, res) {
     tts.play(req.param('text', 'No text passed'), 
         req.param('voice', voice),
-        function (err, filename) {
-            util.log('|tts|get|err=' +err + '|filename=' + filename);
-            readFromCache(filename, function(err, data) {
-                if (err) {
-                    res.writeHead(404, {"Content-Type": "text/html"});
-                    res.end('<html><body><pre>Unable to generate tts <br/>\n' + err + '</pre></body></html>');
-                } else {
-                    res.writeHead(200, {'Content-Type': 'audio/mp4'});
-                    res.end(data);
-                    //res.sendfile(filename);
-                }
-            });
+        function (err, data) {
+            util.log('|tts|get|err=' +err);
+            if (err) {
+                res.writeHead(404, {"Content-Type": "text/html"});
+                res.end('<html><body><pre>Unable to generate tts <br/>\n' + err + '</pre></body></html>');
+            } else {
+                res.writeHead(200, {'Content-Type': 'audio/mp4'});
+                res.end(data);
+            }
         });
 });
 

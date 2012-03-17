@@ -1,35 +1,68 @@
-var util  = require('util'),
-    spawn = require('child_process').spawn,
-    fs    = require('fs'),
+var util   = require('util'),
+    spawn  = require('child_process').spawn,
+    fs     = require('fs'),
+    Cache  = require('./cache'),
     Funnel = require('./funnel'),
-    tts   = {
+    tts    = {
         init: function () {
-            this.cache          = __dirname + '/cache';
+            this.cachePath       = __dirname + '/cache';
             this.format         = '.m4a';
-            this.regex          = /\.m4a$/;
-            this.cacheCallbacks = {};
+            //this.regex          = /\.m4a$/;
+            //this.cacheCallbacks = {};
             this.cacheFiles     = {};
-            this.ttl            = 0; // in ms, 0 == never expire
-            this.funnel = new Funnel();
+            //this.ttl            = 0; // in ms, 0 == never expire
+            this.funnel = new Funnel(2);  // One executor per CPU
+            this.cache  = new Cache(100,1000*60*60);
     
-            try { fs.mkdirSync(this.cache); } catch (e) { } // Ignore
+            try { fs.mkdirSync(this.cachePath); } catch (e) { } // Ignore
             
+            /*
             var files = fs.readdirSync(this.cache + '/');
             for (var index in files) {
                 if (files[index].match(this.regex)) {
                     this.cacheFiles[this.cache + '/' + files[index]] = this.cache + '/' +files[index];
                 }
             }
+            */
+        },
+        loadFromDisk: function (filename, text, voice, callback) {
+            var $this = this;
+            fs.stat(filename, function (err) {
+                if (err) {
+                    $this.funnel.queue($this, $this.generate, filename, text, voice, function(/*err, filename */) {
+                        fs.readFile(filename, function (err, data) {
+                            $this.cacheFiles[filename] = data;
+                            if (callback) {
+                                process.nextTick(function() {
+                                    callback(err, data);
+                                });
+                            }
+                        });
+                    });
+                } else {
+                    fs.readFile(filename, function (err, data) {
+                        $this.cacheFiles[filename] = data;
+                        if (callback) {
+                            process.nextTick(function() {
+                                callback(err, data);
+                            });
+                        }
+                    });
+                }
+            });
         },
         
         play : function (text, voice, callback) {
             voice    = voice || 'Alex';
             var filename = voice + '_' + this.format + '_' + text;
+            filename = this.cachePath + '/' + filename.replace(/[^a-zA-Z0-9]/g, '_') + this.format;
+            util.log('tts|filename='+filename);
+            this.cache.queue(filename, this, this.loadFromDisk, filename, text, voice, callback);
             
-            filename = this.cache + '/' + filename.replace(/[^a-zA-Z0-9]/g, '_') + this.format;
-            this.getWaveFromCache(filename, text, voice, callback);
+            
+            //this.getWaveFromCache(filename, text, voice, callback);
         },
-        
+        /*
         getWaveFromCache : function (filename, text, voice, callback) {
             // Already in cache
             if (this.cacheFiles.hasOwnProperty(filename)) {
@@ -70,7 +103,7 @@ var util  = require('util'),
                 }
             }
         },
-        
+        */
         generate : function (filename, text, voice, callback) {
             var $this = this,
                 command  = '/usr/bin/say',

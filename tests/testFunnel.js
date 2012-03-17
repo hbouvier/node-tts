@@ -19,7 +19,7 @@ function sleep(seconds, callback) {
     util.log('sleep='+seconds);
     var child = spawn(command, args, options);
     child.on('exit', function (code, signal) {
-        util.log('sleep|exit=' + code + '|signal=' + (signal ? signal : 'none'));
+        //util.log('sleep|exit=' + code + '|signal=' + (signal ? signal : 'none'));
         if (code === 0) {
             callback(null);
         } else {
@@ -27,11 +27,11 @@ function sleep(seconds, callback) {
         }
     });
     child.stdout.on('data', function (data) {
-        util.log('sleep|stdout=' + data + '\n');
+        //util.log('sleep|stdout=' + data + '\n');
         output += 'STDOUT:'+ data + '\n';
     });
     child.stderr.on('data', function (data) {
-        util.log('sleep|stderr=' + data + '\n');
+        //util.log('sleep|stderr=' + data + '\n');
         output += 'STDERR:' + data + '\n';
     });
 }
@@ -47,13 +47,16 @@ Sleep.prototype.doit = function(callback) {
 };
 
 Sleep.prototype.done = function(err, result) {
-    util.log('Sleep of ' + this.time + ' seconds, done');
+    ++nbExecuted;
+    util.log('testFunnel: sleep(' + this.time + ' seconds) #' + nbExecuted + ' completed');
 };
 
 var funnel = new Funnel(4);
+var nbExecuted = 0;
 
 function sleepDone(err, result) {
-    util.log('testFunnel: sleep done');
+    ++nbExecuted;
+    util.log('testFunnel: sleep #' + nbExecuted + ' completed');
 }
 
 var sleep1 = new Sleep(1);
@@ -61,9 +64,8 @@ var sleep2 = new Sleep(2);
 var sleep3 = new Sleep(3);
 var sleep5 = new Sleep(5);
 var sleep10 = new Sleep(10);
-//sleep5.doit(sleep5.done);
 
-/*
+
 funnel.queue(sleep, 8, sleepDone);
 funnel.queue(sleep, 7, sleepDone);
 funnel.queue(sleep, 6, sleepDone);
@@ -73,7 +75,7 @@ funnel.queue(sleep, 4, sleepDone);
 funnel.queue(sleep, 3, sleepDone);
 funnel.queue(sleep, 2, sleepDone);
 funnel.queue(sleep, 1, sleepDone);
-*/
+
 
 
 funnel.queue(sleep5, sleep5.doit, sleep5.done);

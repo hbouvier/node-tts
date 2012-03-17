@@ -8,11 +8,13 @@ module.exports = (function () {
     var executors = cpus;  // # of parallel tasks executed at the same time
     var queue     = [];
     var running   = 0;
-    
+    var debug     = true;
+
     function execute() {
-        if (running >= executors || queue.length === 0) return;
+        if (running >= executors || queue.length === 0)
+            return;
         ++running;
-        util.log('funnel|execute|running='+running);
+        if (debug) util.log('funnel|execute|running='+running+'|pending='+queue.length);
 
         var task = queue.shift();
         var obj  = typeof(task[0]) === 'object' ? task.shift()  : null;
@@ -24,14 +26,16 @@ module.exports = (function () {
         func.apply(obj, args);
         
         function done(err, result) {
+            var $this = this;
             --running;
-            util.log('funnel|execute|done|running='+running);
             if (callback) {
                 process.nextTick(function () {
-                    callback.apply(obj, err, result);
+                    callback.call($this, err, result);
                 });
             }
-            process.nextTick(execute);
+            if (running < executors && queue.length > 0)
+                process.nextTick(execute);
+            if (debug) util.log('funnel|done|running='+running+'|pending='+queue.length);
         }
     }
     
@@ -39,7 +43,7 @@ module.exports = (function () {
     
     function Funnel(nbParallelExecutors) {
         executors = nbParallelExecutors || executors;
-        util.log('funnel|executors='+executors);
+        if (debug) util.log('funnel|executors='+executors);
     }
     
     // queue(function) or queue(function, param1,...,paramX) <- paramX must not be a function otherwise it will be taken as the callback
@@ -51,7 +55,9 @@ module.exports = (function () {
         if (task.length < 1)
             throw new Error('Funnel: the first parameter has to be the "function" to execute');
         queue.push(task);
-        process.nextTick(execute);
+        if (running < executors) 
+            process.nextTick(execute);
+        if (debug) util.log('funnel|queue|running='+running+'|pending='+queue.length);
     };
 
 ///////////////////////////////////////////////////////////////////////////////
