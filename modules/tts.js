@@ -4,9 +4,10 @@ var util    = require('util'),
     crypto  = require('crypto'),
     Cache   = require('./cache'),
     Funnel  = require('./funnel'),
+    debug   = false,
     tts     = {
         init: function () {
-            this.cachePath       = __dirname + '/cache';
+            this.cachePath       = __dirname + '../cache';
             this.format         = '.m4a';
             this.cacheFiles     = {};
             this.funnel = new Funnel();  // One executor per CPU
@@ -16,6 +17,9 @@ var util    = require('util'),
                 util.log('tts|cache|hit=' + stats.hit + '|miss=' + stats.miss + 
                               '|queued=' + stats.queued + '|inCache='+stats.inCache+
                               '|fetching='+stats.fetching+'|waiting='+stats.waiting);
+            });
+            this.funnel.on('stats', function (stats) {
+                util.log('tts|funnel|running='+stats.running+'|queued=' + stats.queued+'|averageExecTime='+stats.avgExec+'ms|averageWaitTime='+stats.avgWait+'ms');
             });
         },
         
@@ -54,7 +58,7 @@ var util    = require('util'),
 
             
             var filename = this.cachePath + '/' + hex + this.format;
-            util.log('tts|filename='+filename);
+            if (debug) util.log('tts|filename='+filename);
             this.cache.queue(filename, this, this.loadFromDisk, filename, text, voice, callback);
         },
 
@@ -75,10 +79,10 @@ var util    = require('util'),
                 ],
                 output = '';
                 
-            util.log('|tts|generating|voice='+voice+'|format='+this.format+'|text='+text);
+            if (debug) util.log('|tts|generating|voice='+voice+'|format='+this.format+'|text='+text);
             var child = spawn(command, args, options);
             child.on('exit', function (code /*, signal*/) {
-                util.log('|tts|generated=' + code +'|voice='+voice+'|format='+$this.format+'|text='+text);
+                if (debug) util.log('|tts|generated=' + code +'|voice='+voice+'|format='+$this.format+'|text='+text);
                 if (code === 0) {
                     callback.call($this, null, filename);
                 } else {
@@ -86,11 +90,11 @@ var util    = require('util'),
                 }
             });
             child.stdout.on('data', function (data) {
-                util.log('|tts|stdout=' + data + '\n');
+                if (debug) util.log('|tts|stdout=' + data + '\n');
                 output += 'STDOUT:'+ data + '\n';
             });
             child.stderr.on('data', function (data) {
-                util.log('|tts|stderr=' + data + '\n');
+                if (debug) util.log('|tts|stderr=' + data + '\n');
                 output += 'STDERR:' + data + '\n';
             });
         }

@@ -5,8 +5,8 @@ module.exports = (function () {
     
     ///////////////////////////// PRIVATE  /////////////////////////////////////
     
-    var verbose          = true;
-    var debug            = true;
+    var verbose          = false;
+    var debug            = false;
 
     // 
     var requestQueue     = {};
