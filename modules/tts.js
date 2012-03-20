@@ -7,7 +7,7 @@ var util    = require('util'),
     debug   = false,
     tts     = {
         init: function () {
-            this.cachePath       = __dirname + '../cache';
+            this.cachePath       = __dirname + '/../cache';
             this.format         = '.m4a';
             this.cacheFiles     = {};
             this.funnel = new Funnel();  // One executor per CPU
@@ -15,8 +15,10 @@ var util    = require('util'),
             try { fs.mkdirSync(this.cachePath); } catch (e) { } // Ignore
             this.cache.on('stats', function (stats) {
                 util.log('tts|cache|hit=' + stats.hit + '|miss=' + stats.miss + 
+                              '|failed=' + stats.failed + 
                               '|queued=' + stats.queued + '|inCache='+stats.inCache+
-                              '|fetching='+stats.fetching+'|waiting='+stats.waiting);
+                              '|fetching='+stats.fetching+'|waiting='+stats.waiting +
+                              '|avgFetchTime='+stats.avgFetchTime+'ms');
             });
             this.funnel.on('stats', function (stats) {
                 util.log('tts|funnel|running='+stats.running+'|queued=' + stats.queued+'|averageExecTime='+stats.avgExec+'ms|averageWaitTime='+stats.avgWait+'ms');

@@ -14,15 +14,31 @@ module.exports = (function () {
     var defaultCacheTTL  = 1000;
     var defaultCacheSize = 100;
     
+    var emitThreshold    = 1000; // ms
+    var lastEmit         = 0;
+    
+    var totalRequests       = 0;
+    var totalRequestElapsed = 0;
+    
     /// Stats
     var stats = {
         hit         : 0, // was in the cache
         miss        : 0, // had to fetch
+        failed      : 0, // Error while fetching
         queued      : 0, // resource was already fetching and we had to wait for it
         inCache     : 0, // # in the cache now
         waiting     : 0, // RealTime: # waiting now for a resource
-        fetching    : 0  // RealTime: # of resources being fetched now
+        fetching    : 0, // RealTime: # of resources being fetched now
+        avgFetchTime: 0
     };
+    
+    function bufferedEmitter() {
+        var now = new Date().getTime();
+        if (now - lastEmit > emitThreshold) {
+            this.emit.apply(this, arguments);
+            lastEmit = now;
+        }
+    }
     
     function weedOutCache() {
         var now = new Date().getTime();
@@ -74,6 +90,7 @@ module.exports = (function () {
     
     function execute(task) {
         var self    = this;  // The Cache class that inherits Events
+        var started = new Date().getTime();
         var key     = task.shift();
         var obj     = typeof(task[0]) === 'object' ? task.shift()  : null; // if the fetch function is a class, this is the 'this'
         var fetcher = task.shift();  // the fetch function or method (if the previous parameter was an object)
@@ -81,11 +98,17 @@ module.exports = (function () {
         args.push(done); // We are adding the 'done' method as the callback
         ++stats.miss;
         ++stats.fetching;
-        this.emit('stats', stats);
+        bufferedEmitter.call(this, 'stats', stats);
         fetcher.apply(obj, args); // Fetch the resource and call 'done' when it is fetched
         
         function done(err, resource) {
-            if (verbose) util.log('cache|execute|done|err='+err+'|result='+(resource ? 'found':'null'));
+            totalRequestElapsed += ((new Date().getTime()) - started);
+            ++totalRequests;
+            stats.avgFetchTime = parseInt(totalRequestElapsed / totalRequests);
+            if (err || verbose) util.log('cache|execute|done|err='+err+'|result='+(resource ? 'found':'null'));
+            if (err) {
+                ++stats.failed;
+            }
             if (!err && defaultCacheTTL) {    // ttl ===  0 --> expire imediatly.
                 if (stats.inCache >= defaultCacheSize) {
                     weedOutCache();
@@ -106,12 +129,18 @@ module.exports = (function () {
             delete requestQueue[key];
             for (var i = 0, size = pendingRequests.length ; i < size ; ++i) {
                 if (debug) util.log('cache|calling='+i+'|err='+err+'|resource='+(resource ? 'found':'null'));
-                ++resourceCache[key].hits;
+                if (!err && defaultCacheTTL) {
+                    ++resourceCache[key].hits;
+                }
                 pendingRequests[i].call(this, err, resource, resourceCache[key]);
                 --stats.waiting;
             }
             --stats.fetching;
-            self.emit('stats', stats);
+            if (stats.fetching === 0 && stats.waiting === 0) {
+                self.emit('stats', stats);
+            } else {
+                bufferedEmitter.call(self, 'stats', stats);
+            }
         }
     }
 
@@ -155,14 +184,14 @@ module.exports = (function () {
             process.nextTick(function () {
                 callback(null, resourceCache[key].data, resourceCache[key]);
             });
-            this.emit('stats', stats);
+            bufferedEmitter.call(this, 'stats', stats);
             return;
         }
         ++stats.waiting;
         if (requestQueue.hasOwnProperty(key)) {
             requestQueue[key].push(callback);
             ++stats.queued;
-            this.emit('stats', stats);
+            bufferedEmitter.call(this, 'stats', stats);
             if (verbose) util.log('cache|queued|key='+key+'|waiting='+stats.waiting);
             return;
         }

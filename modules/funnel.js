@@ -11,6 +11,10 @@ module.exports = (function () {
     var paused    = false;
     var debug     = false;
     
+    var emitThreshold    = 1000; // ms
+    var lastEmit         = new Date().getTime();
+
+    
     var totalExecTime  = 0;
     var nbExecTasks    = 0;
     var totalWaitTime  = 0;
@@ -64,9 +68,21 @@ module.exports = (function () {
                 });
             }
             if (debug) util.log('funnel|done|running='+stats.running+'|pending='+stats.queued);
-            self.emit('stats', stats);
+            if (stats.running === 0 && stats.queued === 0) {
+                self.emit('stats', stats);
+            } else {
+                bufferedEmitter.call(self, 'stats', stats);
+            }
         }
-        this.emit('stats', stats);
+        bufferedEmitter.call(this, 'stats', stats);
+    }
+
+    function bufferedEmitter() {
+        var now = new Date().getTime();
+        if (now - lastEmit > emitThreshold) {
+            this.emit.apply(this, arguments);
+            lastEmit = now;
+        }
     }
     
     /////////////////////////// PUBLIC CLASS //////////////////////////////////
@@ -94,7 +110,7 @@ module.exports = (function () {
                 execute.call($this);
             });
         if (debug) util.log('funnel|queue|running='+stats.running+'|pending='+stats.queued);
-        this.emit('stats', stats);
+        bufferedEmitter.call(this, 'stats', stats);
     };
     
     Funnel.prototype.pause = function () {
@@ -116,6 +132,14 @@ module.exports = (function () {
     Funnel.prototype.clear = function () {
         queue = [];
         stats.queued = 0;
+    };
+
+    Funnel.prototype.getStats = function () {
+        return stats;
+    };
+    
+    Funnel.prototype.setEmitThreshold = function (emitThresholdInMS) {
+        emitThreshold = emitThresholdInMS;
     };
 
 ///////////////////////////////////////////////////////////////////////////////
