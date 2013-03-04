@@ -4,17 +4,18 @@ var tts = (function() {
     var indexOfAudioPlaying = -1;
     var paused = false;
     var context = '/tts';
+    var defaultVoice = 'Alex';
     var regex=/^(http(?:s)?:\/\/[^/]+)\//;
     var capture = document.URL.match(regex);
     var ttsServerHost = capture[1];
     
-    console.log('base url with port:', ttsServerHost);
+    function setVoice(voice) { defaultVoice = voice; }
     
     function queue(text) {
         if (text === '') return;
         console.log('tts::queuing '+audioElements.length + ' text:'+text);
         var audio = document.createElement('audio');
-        audio.src= ttsServerHost + context + '/ws/play?text='+text;
+        audio.src= ttsServerHost + context + '/ws/play?text='+text+'&voice='+defaultVoice;
         audio.load();
         audio.addEventListener('ended', function () {
             console.log('ending '+indexOfAudioPlaying);
@@ -60,9 +61,10 @@ var tts = (function() {
     }
     return {
         setHost : function(host) {ttsServerHost = host;},
-        queue: queue,
-        play : play,
-        stop : stop,
-        pause: pause
+        queue    : queue,
+        play     : play,
+        stop     : stop,
+        pause    : pause,
+        setVoice : setVoice
     };
 })();
