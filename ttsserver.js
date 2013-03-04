@@ -4,6 +4,7 @@ var express       = require('express'),
     fs            = require('fs'),
     port          = process.env.PORT || 8082,
     app           = express.createServer(),
+    context       = '/tts',
     voice         = 'Alex',
     version       = JSON.parse(fs.readFileSync(__dirname + "/package.json")).version;
 
@@ -39,7 +40,7 @@ app.configure('production', function () {
 });
 
 
-app.get('/ws/tts', function (req, res) {
+app.get(context+'/ws/play', function (req, res) {
     tts.play(req.param('text', 'No text passed'), 
         req.param('voice', voice),
         function (err, data) {
@@ -53,7 +54,7 @@ app.get('/ws/tts', function (req, res) {
         });
 });
 
-app.get('/ws/generate', function (req, res) {
+app.get(context+'/ws/generate', function (req, res) {
     var async = req.param('async', 'true') === 'true' ? true : false;
     tts.play(req.param('text', 'No text passed'), 
         req.param('voice', voice),
