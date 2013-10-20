@@ -16,7 +16,10 @@
     "url": "git@github.com:hbouvier/node-tts.git"
   },
   "dependencies": {
-    "express": "latest",
+    "express" : "3.2.5",
+    "swagger-node-express" : "latest",
+    "swagger-ui" : "latest",
+    "winston" : "*",
     "crypto" : "latest"
   },
   "devDependencies": {},

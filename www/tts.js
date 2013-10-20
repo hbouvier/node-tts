@@ -3,7 +3,7 @@ var tts = (function() {
     var audioElements       = [];
     var indexOfAudioPlaying = -1;
     var paused = false;
-    var context = '/tts';
+    var context = '/api/v1/tts.json';
     var defaultVoice = 'Alex';
     var regex=/^(http(?:s)?:\/\/[^/]+)\//;
     var capture = document.URL.match(regex);
@@ -15,7 +15,7 @@ var tts = (function() {
         if (text === '') return;
         console.log('tts::queuing '+audioElements.length + ' text:'+text);
         var audio = document.createElement('audio');
-        audio.src= ttsServerHost + context + '/ws/play?text='+text+'&voice='+defaultVoice;
+        audio.src= ttsServerHost + context + '/play/' + defaultVoice + '/' + text;
         audio.load();
         audio.addEventListener('ended', function () {
             console.log('ending '+indexOfAudioPlaying);
@@ -38,9 +38,9 @@ var tts = (function() {
                 audioElements[indexOfAudioPlaying].play();
             } else if (paused) {
                 console.log('unpausing '+indexOfAudioPlaying);
-                paused = false;
                 audioElements[indexOfAudioPlaying].play();
             }
+            paused = false;
         }
     }
     function stop() {
